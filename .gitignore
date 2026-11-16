@@ -2,3 +2,36 @@ node_modules/
 test-results/
 playwright-report/
 _site/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# Web build output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Terraform (state lives in GCS; the provider lock files are committed)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# Dataform: generated at run time, may point at credentials
+.df-credentials.json
+.df-credentials*.json
+
+# Local env and secrets
+.env
+.env.*
+*.pem
+*-key.json
+.DS_Store

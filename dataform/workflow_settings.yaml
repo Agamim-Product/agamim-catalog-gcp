@@ -1,0 +1,11 @@
+# Dataform project: bronze (raw lake) -> silver (cleaned) -> gold (warehouse).
+# Dataset names carry the environment (vars.env), because dev and prod share one GCP project for now.
+# Override per run: dataform run --vars=env=prod,run_id=20261116T203000Z
+defaultProject: agamim-catalog-prod-il
+defaultLocation: me-west1
+defaultDataset: silver_dev
+defaultAssertionDataset: assertions_dev
+vars:
+  env: dev
+  run_id: ""
+  flights_dataset: flydata
