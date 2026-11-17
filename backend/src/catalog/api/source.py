@@ -33,11 +33,14 @@ class GoldSource(Protocol):
     def marker(self) -> str | None:
         """An opaque value that changes whenever gold has been refreshed."""
 
-    def load(self) -> GoldData: ...
+    def load(self) -> GoldData:
+        """Every current gold row the API serves, as one snapshot."""
 
-    def dataset_history(self, dataset_id: str) -> list[Row]: ...
+    def dataset_history(self, dataset_id: str) -> list[Row]:
+        """The versions of one dataset and of its tables' structure, newest first."""
 
-    def flight_history(self, flight_key: str) -> list[Row]: ...
+    def flight_history(self, flight_key: str) -> list[Row]:
+        """The versions of one flight, newest first."""
 
 
 def _plain(value: Any) -> Any:
