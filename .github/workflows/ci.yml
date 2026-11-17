@@ -55,8 +55,9 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Fails on any finding except those allow-listed, with reasons, in web/audit-ci.jsonc.
       - name: Dependency audit
-        run: npm audit --audit-level=low
+        run: npx --yes audit-ci@7.1.0 --config audit-ci.jsonc
 
   data:
     name: Data Factory + SQL migrations
