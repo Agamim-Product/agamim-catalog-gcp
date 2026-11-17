@@ -1,0 +1,45 @@
+# Checkov runs on every pull request and fails the build on any finding NOT listed here.
+# Each skip below is an accepted risk for this phase (public open-data site, Azure for Students budget), with
+# the reason. Review this list before production hardening; remove a line when its risk is addressed.
+directory:
+  - infra/azure
+framework:
+  - terraform
+compact: true
+quiet: true
+skip-check:
+  # --- Network isolation: private endpoints cost ~$7-10/month each and F1 plans cannot use them. ---
+  - CKV2_AZURE_32   # Key Vault private endpoint
+  - CKV2_AZURE_33   # Storage private endpoint
+  - CKV2_AZURE_45   # SQL private endpoint
+  - CKV_AZURE_109   # Key Vault firewall: Data Factory's Azure runtime and CI reach it over the internet with Entra ID
+  - CKV_AZURE_189   # Key Vault public network access (same reason)
+  - CKV_AZURE_113   # SQL public network access: Data Factory, App Service and CI connect with Entra ID only
+  - CKV2_AZURE_34   # SQL "Allow Azure services" rule: needed by Data Factory's Azure runtime and CI runners
+  - CKV_AZURE_59    # Storage public network access: Data Factory's Azure runtime writes the lake
+  - CKV_AZURE_104   # Data Factory public network access: needed for the Azure integration runtime
+  # --- Public site by design: open data, no sign-in. ---
+  - CKV_AZURE_13    # App Service authentication
+  - CKV_AZURE_17    # Client certificates
+  - CKV_AZURE_222   # Web app public network access
+  # --- Budget tiers (F1/B1 App Service, Basic SQL) do not offer these. ---
+  - CKV_AZURE_211   # App Service plan "suitable for production" (B1 in prod, F1 in dev/staging)
+  - CKV_AZURE_212   # Minimum instance count for failover
+  - CKV_AZURE_225   # Zone-redundant App Service plan
+  - CKV_AZURE_214   # Always On: set on B1 (prod); the free F1 tier does not support it
+  - CKV_AZURE_229   # Zone-redundant SQL database
+  - CKV_AZURE_224   # SQL ledger tables: not needed for open, re-fetchable data
+  - CKV_AZURE_206   # Geo/zone replication: raw data can be re-fetched from the source; state is versioned
+  - CKV_AZURE_88    # Azure Files mount for App Service: the app is stateless
+  # --- Encryption with customer-managed keys: platform-managed keys are used (no Key Vault HSM budget). ---
+  - CKV2_AZURE_1    # Storage CMK
+  - CKV2_AZURE_15   # Data Factory CMK
+  # --- Deferred to production hardening. ---
+  - CKV_AZURE_23    # SQL auditing (to Log Analytics)
+  - CKV_AZURE_24    # SQL audit retention > 90 days
+  - CKV2_AZURE_2    # SQL vulnerability assessment (needs a storage account)
+  - CKV_AZURE_42    # Key Vault recoverable: soft delete is on (7 days); purge protection is off so dev names can be reused
+  - CKV_AZURE_110   # Key Vault purge protection (same reason)
+  - CKV2_AZURE_21   # Blob read logging: the lake is read only by Data Factory, whose runs are logged
+  - CKV_AZURE_33    # Queue logging: no queues are used
+  - CKV_AZURE_103   # Data Factory Git integration: pipelines live in this repo and are deployed by CI

@@ -1,0 +1,13 @@
+{
+  "name": "ls_ckan_rest",
+  "properties": {
+    "description": "data.gov.il CKAN Action API (public, no authentication).",
+    "type": "RestService",
+    "annotations": [],
+    "typeProperties": {
+      "url": "https://data.gov.il/api/3/action/",
+      "enableServerCertificateValidation": true,
+      "authenticationType": "Anonymous"
+    }
+  }
+}

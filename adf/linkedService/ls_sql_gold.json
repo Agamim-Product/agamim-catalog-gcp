@@ -1,0 +1,15 @@
+{
+  "name": "ls_sql_gold",
+  "properties": {
+    "description": "The environment's Azure SQL database (silver + gold). Signs in with the factory's managed identity.",
+    "type": "AzureSqlDatabase",
+    "annotations": [],
+    "typeProperties": {
+      "server": "${SQL_SERVER}",
+      "database": "gold",
+      "encrypt": "mandatory",
+      "trustServerCertificate": false,
+      "authenticationType": "SystemAssignedManagedIdentity"
+    }
+  }
+}

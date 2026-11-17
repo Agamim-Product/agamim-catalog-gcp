@@ -1,0 +1,46 @@
+{
+  "name": "agamim-catalog-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Public consumer site of the Agamim open-data catalog (Hebrew, right-to-left).",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.80.7",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-router-dom": "7.18.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "22.20.5",
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "@vitejs/plugin-react": "4.5.2",
+    "@vitest/coverage-v8": "4.1.12",
+    "eslint": "9.39.5",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "globals": "16.2.0",
+    "jsdom": "26.1.0",
+    "typescript": "5.8.3",
+    "typescript-eslint": "8.73.0",
+    "vite": "6.4.6",
+    "vitest": "4.1.12"
+  }
+}

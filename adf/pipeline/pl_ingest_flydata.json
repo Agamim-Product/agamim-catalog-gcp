@@ -1,0 +1,623 @@
+{
+  "name": "pl_ingest_flydata",
+  "properties": {
+    "description": "data.gov.il flydata: API -> lake (bronze, unchanged) -> silver -> clean, check, SCD2 merge into gold. Rows are paged 1,000 at a time, up to 50,000 rows (raise RANGE in CopyRowsToLake if the table grows past that).",
+    "activities": [
+      {
+        "name": "SetRunId",
+        "type": "SetVariable",
+        "dependsOn": [],
+        "userProperties": [],
+        "typeProperties": {
+          "variableName": "runId",
+          "value": {
+            "value": "@formatDateTime(pipeline().TriggerTime, 'yyyyMMddHHmmss')",
+            "type": "Expression"
+          }
+        }
+      },
+      {
+        "name": "CopyPackageToLake",
+        "type": "Copy",
+        "dependsOn": [
+          {
+            "activity": "SetRunId",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:15:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 60,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "RestSource",
+            "httpRequestTimeout": "00:02:00",
+            "requestInterval": "00.00:00:00.200",
+            "requestMethod": "GET",
+            "additionalHeaders": {
+              "User-Agent": "Mozilla/5.0 (compatible; open-data-catalog-ingest/0.1)"
+            }
+          },
+          "sink": {
+            "type": "JsonSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "JsonWriteSettings"
+            }
+          },
+          "enableStaging": false,
+          "dataIntegrationUnits": 2
+        },
+        "inputs": [
+          {
+            "referenceName": "ds_ckan_rest",
+            "type": "DatasetReference",
+            "parameters": {
+              "relativeUrl": {
+                "value": "@concat('package_show?id=', pipeline().parameters.datasetName)",
+                "type": "Expression"
+              }
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "ds_lake_json",
+            "type": "DatasetReference",
+            "parameters": {
+              "folder": {
+                "value": "@concat('ckan/package/dt=', formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd'), '/run=', variables('runId'))",
+                "type": "Expression"
+              },
+              "file": "package.json"
+            }
+          }
+        ]
+      },
+      {
+        "name": "CopyColumnsToLake",
+        "type": "Copy",
+        "dependsOn": [
+          {
+            "activity": "SetRunId",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:15:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 60,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "RestSource",
+            "httpRequestTimeout": "00:02:00",
+            "requestInterval": "00.00:00:00.200",
+            "requestMethod": "GET",
+            "additionalHeaders": {
+              "User-Agent": "Mozilla/5.0 (compatible; open-data-catalog-ingest/0.1)"
+            }
+          },
+          "sink": {
+            "type": "JsonSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "JsonWriteSettings"
+            }
+          },
+          "enableStaging": false,
+          "dataIntegrationUnits": 2
+        },
+        "inputs": [
+          {
+            "referenceName": "ds_ckan_rest",
+            "type": "DatasetReference",
+            "parameters": {
+              "relativeUrl": {
+                "value": "@concat('datastore_search?limit=0&resource_id=', pipeline().parameters.resourceId)",
+                "type": "Expression"
+              }
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "ds_lake_json",
+            "type": "DatasetReference",
+            "parameters": {
+              "folder": {
+                "value": "@concat('ckan/datastore/dt=', formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd'), '/run=', variables('runId'))",
+                "type": "Expression"
+              },
+              "file": "fields.json"
+            }
+          }
+        ]
+      },
+      {
+        "name": "CopyRowsToLake",
+        "type": "Copy",
+        "dependsOn": [
+          {
+            "activity": "SetRunId",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:10:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 60,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "RestSource",
+            "httpRequestTimeout": "00:02:00",
+            "requestInterval": "00.00:00:00.200",
+            "requestMethod": "GET",
+            "additionalHeaders": {
+              "User-Agent": "Mozilla/5.0 (compatible; open-data-catalog-ingest/0.1)"
+            },
+            "paginationRules": {
+              "QueryParameters.{offset}": "RANGE:0:50000:1000",
+              "EndCondition:$.result.records": "Empty"
+            }
+          },
+          "sink": {
+            "type": "JsonSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "JsonWriteSettings"
+            }
+          },
+          "enableStaging": false,
+          "dataIntegrationUnits": 2
+        },
+        "inputs": [
+          {
+            "referenceName": "ds_ckan_rest",
+            "type": "DatasetReference",
+            "parameters": {
+              "relativeUrl": {
+                "value": "@concat('datastore_search?limit=', string(pipeline().parameters.pageSize), '&resource_id=', pipeline().parameters.resourceId, '&offset={offset}')",
+                "type": "Expression"
+              }
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "ds_lake_json",
+            "type": "DatasetReference",
+            "parameters": {
+              "folder": {
+                "value": "@concat('ckan/records/dt=', formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd'), '/run=', variables('runId'))",
+                "type": "Expression"
+              },
+              "file": "records.json"
+            }
+          }
+        ]
+      },
+      {
+        "name": "CopyRowsToSilver",
+        "type": "Copy",
+        "dependsOn": [
+          {
+            "activity": "CopyRowsToLake",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:15:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 60,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "JsonSource",
+            "storeSettings": {
+              "type": "AzureBlobFSReadSettings",
+              "recursive": false
+            },
+            "formatSettings": {
+              "type": "JsonReadSettings"
+            }
+          },
+          "sink": {
+            "type": "AzureSqlSink",
+            "preCopyScript": "TRUNCATE TABLE silver.df_records_raw",
+            "writeBehavior": "insert",
+            "sqlWriterUseTableLock": false,
+            "disableMetricsCollection": false
+          },
+          "enableStaging": false,
+          "dataIntegrationUnits": 2,
+          "translator": {
+            "type": "TabularTranslator",
+            "collectionReference": "$['result']['records']",
+            "mappings": [
+              {
+                "source": {
+                  "path": "['_id']"
+                },
+                "sink": {
+                  "name": "_id"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHOPER']"
+                },
+                "sink": {
+                  "name": "CHOPER"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHFLTN']"
+                },
+                "sink": {
+                  "name": "CHFLTN"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHOPERD']"
+                },
+                "sink": {
+                  "name": "CHOPERD"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHSTOL']"
+                },
+                "sink": {
+                  "name": "CHSTOL"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHPTOL']"
+                },
+                "sink": {
+                  "name": "CHPTOL"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHAORD']"
+                },
+                "sink": {
+                  "name": "CHAORD"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHLOC1']"
+                },
+                "sink": {
+                  "name": "CHLOC1"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHLOC1D']"
+                },
+                "sink": {
+                  "name": "CHLOC1D"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHLOC1TH']"
+                },
+                "sink": {
+                  "name": "CHLOC1TH"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHLOC1T']"
+                },
+                "sink": {
+                  "name": "CHLOC1T"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHLOC1CH']"
+                },
+                "sink": {
+                  "name": "CHLOC1CH"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHLOCCT']"
+                },
+                "sink": {
+                  "name": "CHLOCCT"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHTERM']"
+                },
+                "sink": {
+                  "name": "CHTERM"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHCINT']"
+                },
+                "sink": {
+                  "name": "CHCINT"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHCKZN']"
+                },
+                "sink": {
+                  "name": "CHCKZN"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHRMINE']"
+                },
+                "sink": {
+                  "name": "CHRMINE"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHRMINH']"
+                },
+                "sink": {
+                  "name": "CHRMINH"
+                }
+              }
+            ]
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "ds_lake_json",
+            "type": "DatasetReference",
+            "parameters": {
+              "folder": {
+                "value": "@concat('ckan/records/dt=', formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd'), '/run=', variables('runId'))",
+                "type": "Expression"
+              },
+              "file": "records.json"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "ds_sql_records_raw",
+            "type": "DatasetReference"
+          }
+        ]
+      },
+      {
+        "name": "ReadPackage",
+        "type": "Lookup",
+        "dependsOn": [
+          {
+            "activity": "CopyPackageToLake",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:15:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 60,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "JsonSource",
+            "storeSettings": {
+              "type": "AzureBlobFSReadSettings",
+              "recursive": false
+            },
+            "formatSettings": {
+              "type": "JsonReadSettings"
+            }
+          },
+          "dataset": {
+            "referenceName": "ds_lake_json",
+            "type": "DatasetReference",
+            "parameters": {
+              "folder": {
+                "value": "@concat('ckan/package/dt=', formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd'), '/run=', variables('runId'))",
+                "type": "Expression"
+              },
+              "file": "package.json"
+            }
+          },
+          "firstRowOnly": true
+        }
+      },
+      {
+        "name": "ReadColumns",
+        "type": "Lookup",
+        "dependsOn": [
+          {
+            "activity": "CopyColumnsToLake",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:15:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 60,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "JsonSource",
+            "storeSettings": {
+              "type": "AzureBlobFSReadSettings",
+              "recursive": false
+            },
+            "formatSettings": {
+              "type": "JsonReadSettings"
+            }
+          },
+          "dataset": {
+            "referenceName": "ds_lake_json",
+            "type": "DatasetReference",
+            "parameters": {
+              "folder": {
+                "value": "@concat('ckan/datastore/dt=', formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd'), '/run=', variables('runId'))",
+                "type": "Expression"
+              },
+              "file": "fields.json"
+            }
+          },
+          "firstRowOnly": true
+        }
+      },
+      {
+        "name": "CleanCheckMergeGold",
+        "type": "SqlServerStoredProcedure",
+        "dependsOn": [
+          {
+            "activity": "CopyRowsToSilver",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "ReadPackage",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "ReadColumns",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:15:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 60,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "ls_sql_gold",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "storedProcedureName": "[gold].[usp_refresh_catalog]",
+          "storedProcedureParameters": {
+            "run_id": {
+              "value": {
+                "value": "@variables('runId')",
+                "type": "Expression"
+              },
+              "type": "String"
+            },
+            "package_json": {
+              "value": {
+                "value": "@string(activity('ReadPackage').output.firstRow)",
+                "type": "Expression"
+              },
+              "type": "String"
+            },
+            "fields_json": {
+              "value": {
+                "value": "@string(activity('ReadColumns').output.firstRow)",
+                "type": "Expression"
+              },
+              "type": "String"
+            },
+            "resource_id": {
+              "value": {
+                "value": "@pipeline().parameters.resourceId",
+                "type": "Expression"
+              },
+              "type": "String"
+            },
+            "pipeline_run": {
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
+              "type": "String"
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "datasetName": {
+        "type": "string",
+        "defaultValue": "flydata"
+      },
+      "resourceId": {
+        "type": "string",
+        "defaultValue": "e83f763b-b7d7-479e-b172-ae981ddc6de5"
+      },
+      "pageSize": {
+        "type": "int",
+        "defaultValue": 1000
+      }
+    },
+    "variables": {
+      "runId": {
+        "type": "String"
+      }
+    },
+    "folder": {
+      "name": "catalog"
+    },
+    "annotations": []
+  }
+}
