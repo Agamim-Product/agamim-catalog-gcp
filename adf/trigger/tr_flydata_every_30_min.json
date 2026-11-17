@@ -1,0 +1,26 @@
+{
+  "name": "tr_flydata_every_30_min",
+  "properties": {
+    "description": "Runs pl_ingest_flydata every 30 minutes. Started in prod only; dev and staging run on demand from CI.",
+    "annotations": [],
+    "runtimeState": "Stopped",
+    "pipelines": [
+      {
+        "pipelineReference": {
+          "referenceName": "pl_ingest_flydata",
+          "type": "PipelineReference"
+        },
+        "parameters": {}
+      }
+    ],
+    "type": "ScheduleTrigger",
+    "typeProperties": {
+      "recurrence": {
+        "frequency": "Minute",
+        "interval": 30,
+        "startTime": "2026-11-17T00:00:00Z",
+        "timeZone": "UTC"
+      }
+    }
+  }
+}

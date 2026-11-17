@@ -1,26 +1,22 @@
 [project]
 name = "agamim-catalog"
 version = "0.1.0"
-description = "Agamim open-data catalog: CKAN ingest to the bronze lake, and the read-only catalog API"
+description = "Agamim open-data catalog: the read-only catalog API over the gold schema in Azure SQL"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-  "httpx>=0.28,<1",
-  "tenacity>=9,<10",
-  "google-cloud-storage>=2.18,<4",
-  "google-cloud-bigquery>=3.27,<4",
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.32,<1",
+  "gunicorn>=23,<24",
   "pydantic>=2.9,<3",
+  "pyodbc>=5.2,<6",
+  "azure-identity>=1.19,<2",
 ]
-
-[project.scripts]
-catalog-ingest = "catalog.ingest.main:main"
 
 [dependency-groups]
 dev = [
   "pytest>=8.3",
   "pytest-cov>=6",
-  "respx>=0.22",
+  "httpx>=0.28",
   "ruff>=0.8",
   "mypy>=1.13",
   "pip-audit>=2.7",
@@ -44,7 +40,7 @@ ignore = ["S101"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "PT011", "PT018", "E501", "RUF001"]  # Hebrew test data and wide fixture rows
 # Table names in SQL come from validated deployment settings (see _IDENT); request values are parameters.
-"src/catalog/api/source.py" = ["S608"]
+"src/catalog/api/source.py" = ["S608"]  # fixed SQL text only; values are ? parameters
 
 [tool.mypy]
 strict = true
@@ -53,7 +49,7 @@ mypy_path = "src"
 packages = ["catalog"]
 
 [[tool.mypy.overrides]]
-module = ["google.cloud.*"]
+module = ["pyodbc"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

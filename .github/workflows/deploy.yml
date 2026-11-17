@@ -1,0 +1,80 @@
+name: Deploy
+
+# On every merge to main: run the full CI again, build the release once, then promote that same release
+# dev -> staging -> production. Production waits for a required reviewer (GitHub Environment "production").
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build the release (once)
+    needs: ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22.14.0"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: "0.10.12"
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Package website + API
+        run: scripts/package_app.sh release/app.zip
+      - name: Add deployable configuration
+        run: |
+          set -euo pipefail
+          mkdir -p release/infra
+          cp -R infra/azure release/infra/azure
+          cp -R adf sql release/
+          find release/infra -name '.terraform' -prune -exec rm -rf {} +
+          echo "${GITHUB_SHA}" > release/VERSION
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ github.sha }}
+          path: release
+          retention-days: 30
+          if-no-files-found: error
+
+  dev:
+    needs: build
+    uses: ./.github/workflows/_deploy-env.yml
+    with:
+      environment: dev
+      tf_env: dev
+    secrets: inherit
+
+  staging:
+    needs: dev
+    uses: ./.github/workflows/_deploy-env.yml
+    with:
+      environment: staging
+      tf_env: stg
+    secrets: inherit
+
+  production:
+    needs: staging
+    uses: ./.github/workflows/_deploy-env.yml
+    with:
+      environment: production
+      tf_env: prod
+      start_triggers: true
+    secrets: inherit

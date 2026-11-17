@@ -86,7 +86,13 @@ export function SearchBox({ initial = "" }: { initial?: string }) {
         חיפוש
       </button>
       {showList ? (
-        <ul id={`${listId}-list`} role="listbox" className="suggest" aria-label="הצעות">
+        <ul
+          id={`${listId}-list`}
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role -- ARIA 1.2 combobox popup
+          role="listbox"
+          className="suggest"
+          aria-label="הצעות"
+        >
           {items.map((item, i) => (
             <li
               key={item.name}

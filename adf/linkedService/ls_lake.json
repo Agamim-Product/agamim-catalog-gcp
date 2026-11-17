@@ -1,0 +1,11 @@
+{
+  "name": "ls_lake",
+  "properties": {
+    "description": "The environment's data lake. Signs in with the factory's managed identity.",
+    "type": "AzureBlobFS",
+    "annotations": [],
+    "typeProperties": {
+      "url": "${LAKE_DFS_URL}"
+    }
+  }
+}

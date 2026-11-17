@@ -1,0 +1,117 @@
+name: Deploy one environment
+
+# Called by deploy.yml once per environment, with the same release artifact each time.
+# Steps: infrastructure (Terraform) -> database migrations -> Data Factory -> website + API -> pipeline run -> smoke test.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub Environment (dev, staging, production)
+        type: string
+        required: true
+      tf_env:
+        description: Terraform root under infra/azure/envs (dev, stg, prod)
+        type: string
+        required: true
+      start_triggers:
+        description: Start the 30-minute schedule (prod only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false # never stop a deployment halfway
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_sql_admin_object_id: ${{ vars.SQL_ADMIN_OBJECT_ID }}
+      TF_VAR_sql_admin_login: ${{ secrets.SQL_ADMIN_LOGIN }}
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      SQLCMD_VERSION: v1.10.0
+    steps:
+      - name: Get the release
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-${{ github.sha }}
+          path: release
+
+      - name: Sign in to Azure (OIDC, this environment's identity only)
+        uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: "1.15.5"
+          terraform_wrapper: false
+
+      - name: Infrastructure (terraform apply)
+        id: tf
+        working-directory: release/infra/azure/envs/${{ inputs.tf_env }}
+        run: |
+          set -euo pipefail
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+          out=$(terraform output -json)
+          {
+            echo "lake=$(jq -r .lake_account.value <<<"$out")"
+            echo "sql=$(jq -r .sql_server_fqdn.value <<<"$out")"
+            echo "adf=$(jq -r .data_factory_name.value <<<"$out")"
+            echo "app=$(jq -r .web_app_name.value <<<"$out")"
+            echo "url=$(jq -r .web_app_url.value <<<"$out")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install sqlcmd
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/microsoft/go-sqlcmd/releases/download/${SQLCMD_VERSION}/sqlcmd-linux-amd64.tar.bz2" | tar -xj -C /usr/local/bin sqlcmd
+          sqlcmd --version
+
+      - name: Database migrations
+        run: python3 release/sql/migrate.py --server "${{ steps.tf.outputs.sql }}"
+
+      - name: Data Factory (deploy, then run the pipeline once and wait for it)
+        run: |
+          python3 release/adf/deploy.py \
+            --resource-group "rg-agamim-catalog-${{ inputs.tf_env }}-ilc" \
+            --factory "${{ steps.tf.outputs.adf }}" \
+            --lake-dfs-url "https://${{ steps.tf.outputs.lake }}.dfs.core.windows.net/" \
+            --sql-server "${{ steps.tf.outputs.sql }}" \
+            --run pl_ingest_flydata \
+            ${{ inputs.start_triggers && '--start-triggers' || '' }}
+
+      - name: Website + API
+        run: |
+          az webapp deploy --resource-group "rg-agamim-catalog-${{ inputs.tf_env }}-ilc" \
+            --name "${{ steps.tf.outputs.app }}" --src-path release/app.zip --type zip --clean true --restart true
+
+      - name: Smoke test
+        env:
+          URL: ${{ steps.tf.outputs.url }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/healthz") && [ "$code" = "200" ] && break
+            echo "attempt $i: /healthz returned $code"; sleep 15
+          done
+          [ "$code" = "200" ] || { echo "the app did not become healthy"; exit 1; }
+          curl -fsS "$URL/" | grep -q 'lang="he"'
+          status=$(curl -fsS "$URL/api/status")
+          jq -e '.last_run.status == "succeeded" and .datasets >= 1 and .flights > 0' <<<"$status" >/dev/null \
+            || { echo "unexpected /api/status: $status"; exit 1; }
+          curl -fsS "$URL/api/datasets/flydata" | jq -e '.resources | length >= 1' >/dev/null
+          echo "### ${{ inputs.environment }} is live: $URL" >> "$GITHUB_STEP_SUMMARY"

@@ -1,15 +1,17 @@
-"""FastAPI app: the public, read-only catalog API (served under /api by the load balancer)."""
+"""FastAPI app: the public, read-only catalog API under /api, plus the built website (STATIC_DIR) at /."""
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from catalog.api.catalog import Catalog, page
-from catalog.api.source import BigQueryGold, GoldSource
+from catalog.api.source import AzureSqlGold, GoldSource
 
 CATALOG_CACHE = "public, max-age=300, stale-while-revalidate=60"
 STATUS_CACHE = "public, max-age=60"
@@ -21,12 +23,7 @@ Text = Annotated[str, Query(max_length=200)]
 
 
 def _default_source() -> GoldSource:
-    return BigQueryGold(
-        project=os.environ["GCP_PROJECT"],
-        dataset=os.environ["GOLD_DATASET"],
-        location=os.environ.get("BQ_LOCATION", "me-west1"),
-        marker_uri=os.environ["READY_MARKER_URI"],
-    )
+    return AzureSqlGold(server=os.environ["SQL_SERVER"], database=os.environ.get("SQL_DATABASE", "gold"))
 
 
 def create_app(source: GoldSource | None = None, *, check_every_s: float = 60.0) -> FastAPI:
@@ -139,6 +136,12 @@ def create_app(source: GoldSource | None = None, *, check_every_s: float = 60.0)
         if not items:
             raise HTTPException(status_code=404, detail="Flight not found")
         return {"items": items}
+
+    # The website, built by Vite. Mounted last, so every /api route above wins. Hash routes (/#/catalog) mean
+    # every page is index.html.
+    static_dir = os.environ.get("STATIC_DIR")
+    if static_dir and Path(static_dir).is_dir():
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="site")
 
     return app
 

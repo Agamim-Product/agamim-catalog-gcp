@@ -190,8 +190,10 @@ def test_normalize_and_plain() -> None:
     assert normalize("  מִקְלָט  Café ") == "מקלט cafe"
     assert normalize(None) == ""
 
-    class Stamp:
-        def isoformat(self) -> str:
-            return "2026-11-16T00:00:00"
+    from datetime import date, datetime
 
-    assert _plain({"a": [Stamp()], "b": 1}) == {"a": ["2026-11-16T00:00:00"], "b": 1}
+    assert _plain({"a": [datetime(2026, 11, 16)], "b": 1, "c": date(2026, 11, 16)}) == {
+        "a": ["2026-11-16T00:00:00Z"],
+        "b": 1,
+        "c": "2026-11-16",
+    }

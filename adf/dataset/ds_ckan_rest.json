@@ -1,0 +1,23 @@
+{
+  "name": "ds_ckan_rest",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "ls_ckan_rest",
+      "type": "LinkedServiceReference"
+    },
+    "parameters": {
+      "relativeUrl": {
+        "type": "string"
+      }
+    },
+    "annotations": [],
+    "type": "RestResource",
+    "typeProperties": {
+      "relativeUrl": {
+        "value": "@dataset().relativeUrl",
+        "type": "Expression"
+      }
+    },
+    "schema": []
+  }
+}

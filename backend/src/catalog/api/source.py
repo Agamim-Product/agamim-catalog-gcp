@@ -1,23 +1,24 @@
-"""Where the API's data comes from: gold tables in BigQuery, and the 'gold is ready' marker in the lake.
+"""Where the API's data comes from: the gold schema in the environment's Azure SQL database.
 
-The API never queries BigQuery per request. It loads a snapshot of gold into memory and reloads it when the
-marker written at the end of each refresh changes (checked at most once a minute). That keeps responses fast
-and BigQuery use well inside the free tier.
+The API never queries SQL per request. It loads a snapshot of gold into memory and reloads it when a new
+pipeline run has finished (the latest run_id in gold.fct_ingestion_run, checked at most once a minute).
+It signs in with the web app's managed identity (no password), through Microsoft's ODBC driver.
 """
 
 from __future__ import annotations
 
 import json
-import re
+import struct
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any, Protocol
-from urllib.parse import urlparse
 
 Row = dict[str, Any]
 
-# Project and dataset names come from deployment settings, never from requests; they are still checked,
-# because they are placed in SQL text. Every request value is passed as a query parameter.
-_IDENT = re.compile(r"[A-Za-z0-9_\-]{1,128}")
+SQL_COPT_SS_ACCESS_TOKEN = 1256  # pyodbc connection attribute for an Entra ID access token
+SQL_SCOPE = "https://database.windows.net/.default"
 
 
 @dataclass(frozen=True)
@@ -40,89 +41,183 @@ class GoldSource(Protocol):
 
 
 def _plain(value: Any) -> Any:
-    """BigQuery rows to JSON-friendly values (timestamps become ISO strings, JSON columns are parsed)."""
+    """SQL values to JSON-friendly ones: times become ISO strings (stored as UTC)."""
+    if isinstance(value, datetime):
+        return value.isoformat() + ("Z" if value.tzinfo is None else "")
+    if isinstance(value, date):
+        return value.isoformat()
     if isinstance(value, dict):
         return {k: _plain(v) for k, v in value.items()}
     if isinstance(value, list):
         return [_plain(v) for v in value]
-    if hasattr(value, "isoformat"):
-        return value.isoformat()
     return value
 
 
-class BigQueryGold:
-    MAX_ROWS_PER_TABLE = 50000
+def _json(text: str | None, default: Any) -> Any:
+    if not text:
+        return default
+    try:
+        return json.loads(text)
+    except ValueError:
+        return default
 
-    def __init__(self, project: str, dataset: str, location: str, marker_uri: str) -> None:
-        from google.cloud import bigquery, storage  # type: ignore[attr-defined]
 
-        for name in (project, dataset):
-            if not _IDENT.fullmatch(name):
-                raise ValueError(f"Invalid BigQuery identifier: {name!r}")
-        self._bq = bigquery.Client(project=project, location=location)
-        self._ds = f"`{project}.{dataset}`"
-        parsed = urlparse(marker_uri)
-        self._marker_blob = (
-            storage.Client(project=project).bucket(parsed.netloc).blob(parsed.path.lstrip("/"))
+def build_datasets(datasets: list[Row], orgs: list[Row], resources: list[Row]) -> list[Row]:
+    """Shape the current gold rows into the catalog documents the API returns."""
+    org_by_id = {o["organization_id"]: o for o in orgs}
+    res_by_dataset: dict[str, list[Row]] = {}
+    for r in sorted(resources, key=lambda r: (r.get("position") is None, r.get("position") or 0)):
+        res_by_dataset.setdefault(r["dataset_id"], []).append(
+            {
+                "resource_id": r["resource_id"],
+                "name": r.get("name"),
+                "description": r.get("description"),
+                "format": r.get("format"),
+                "download_url": r.get("download_url"),
+                "size_bytes": r.get("size_bytes"),
+                "is_queryable": bool(r.get("is_queryable")),
+                "update_frequency": r.get("update_frequency"),
+                "data_modified_at": r.get("data_modified_at"),
+                "columns": _json(r.get("columns_json"), None),
+                "row_count": r.get("row_count"),
+                "has_full_rows": None if r.get("has_full_rows") is None else bool(r.get("has_full_rows")),
+                "copied_at": r.get("copied_at"),
+                "schema_changed_at": r.get("schema_changed_at"),
+            }
         )
+    out = []
+    for d in datasets:
+        org = org_by_id.get(d.get("organization_id"), {})
+        out.append(
+            {
+                "dataset_id": d["dataset_id"],
+                "name": d["name"],
+                "title": d.get("title"),
+                "description": d.get("description"),
+                "license": d.get("license"),
+                "author": d.get("author"),
+                "maintainer": d.get("maintainer"),
+                "update_frequency": d.get("update_frequency"),
+                "tags": _json(d.get("tags_json"), []),
+                "source_created_at": d.get("source_created_at"),
+                "source_modified_at": d.get("source_modified_at"),
+                "source_url": d.get("source_url"),
+                "catalog_changed_at": d.get("valid_from"),
+                "organization": {
+                    "id": org.get("organization_id"),
+                    "name": org.get("name"),
+                    "title": org.get("title"),
+                    "image_url": org.get("image_url"),
+                },
+                "resources": res_by_dataset.get(d["dataset_id"], []),
+            }
+        )
+    return _plain(out)  # type: ignore[no-any-return]
 
-    def _query(self, sql: str, params: list[Any] | None = None) -> list[Row]:
-        from google.cloud import bigquery
 
-        config = bigquery.QueryJobConfig(query_parameters=params or [], use_query_cache=True)
-        return [_plain(dict(row.items())) for row in self._bq.query(sql, job_config=config).result()]
+class AzureSqlGold:
+    def __init__(self, server: str, database: str, *, connect: Callable[[], Any] | None = None) -> None:
+        self._server = server
+        self._database = database
+        self._connect = connect or self._default_connect
+
+    def _default_connect(self) -> Any:  # pragma: no cover - needs Azure; exercised by the deploy smoke test
+        import pyodbc
+        from azure.identity import DefaultAzureCredential
+
+        drivers = [d for d in pyodbc.drivers() if "SQL Server" in d]
+        if not drivers:
+            raise RuntimeError("No Microsoft ODBC driver for SQL Server is installed")
+        driver = sorted(drivers)[-1]
+        token = DefaultAzureCredential().get_token(SQL_SCOPE).token.encode("utf-16-le")
+        packed = struct.pack(f"<I{len(token)}s", len(token), token)
+        conn_str = (
+            f"Driver={{{driver}}};Server=tcp:{self._server},1433;Database={self._database};"
+            "Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30"
+        )
+        return pyodbc.connect(conn_str, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: packed})
+
+    @contextmanager
+    def _cursor(self) -> Iterator[Any]:
+        conn = self._connect()
+        try:
+            yield conn.cursor()
+        finally:
+            conn.close()
+
+    def _query(self, sql: str, *params: Any) -> list[Row]:
+        with self._cursor() as cur:
+            cur.execute(sql, *params)
+            names = [c[0] for c in cur.description]
+            return [dict(zip(names, row, strict=True)) for row in cur.fetchall()]
 
     def marker(self) -> str | None:
-        from google.api_core.exceptions import NotFound
-
-        try:
-            self._marker_blob.reload()
-        except NotFound:
-            return None
-        return str(self._marker_blob.generation)
+        rows = self._query(
+            "SELECT MAX(run_id) AS run_id FROM gold.fct_ingestion_run WHERE status = 'succeeded'"
+        )
+        value = rows[0]["run_id"] if rows else None
+        return str(value) if value else None
 
     def load(self) -> GoldData:
-        datasets = self._query(f"SELECT * FROM {self._ds}.v_catalog")
-        flights = self._query(
-            f"""SELECT * EXCEPT (row_hash, is_current, valid_to, run_id), valid_from AS changed_at
-                FROM {self._ds}.dim_flight WHERE is_current"""
+        datasets = self._query("SELECT * FROM gold.dim_dataset WHERE is_current = 1")
+        orgs = self._query("SELECT * FROM gold.dim_organization WHERE is_current = 1")
+        resources = self._query(
+            """SELECT r.*, s.columns_json, s.valid_from AS schema_changed_at,
+                      snap.row_count, snap.has_full_rows, snap.copied_at
+               FROM gold.dim_resource r
+               LEFT JOIN gold.dim_resource_schema s ON s.resource_id = r.resource_id AND s.is_current = 1
+               LEFT JOIN gold.resource_snapshot snap ON snap.resource_id = r.resource_id
+               WHERE r.is_current = 1"""
         )
-        runs = self._query(f"SELECT * FROM {self._ds}.fct_ingestion_run ORDER BY run_id DESC LIMIT 20")
+        flights = self._query(
+            """SELECT flight_key, airline_code, flight_number, airline_name, direction, scheduled_at,
+                      estimated_at,
+                      airport_code, airport_name, city_en, city_he, country_en, country_he, terminal,
+                      checkin_counters, checkin_zone, status_en, status_he, valid_from AS changed_at
+               FROM gold.dim_flight WHERE is_current = 1"""
+        )
+        runs = self._query("SELECT TOP 20 * FROM gold.fct_ingestion_run ORDER BY run_id DESC")
         rows: dict[str, list[Row]] = {}
         for item in self._query(
-            f"""SELECT resource_id, row_number, TO_JSON_STRING(row) AS row FROM {self._ds}.resource_row
-                QUALIFY ROW_NUMBER() OVER (PARTITION BY resource_id ORDER BY row_number)
-                        <= {self.MAX_ROWS_PER_TABLE}
-                ORDER BY resource_id, row_number"""
+            "SELECT resource_id, row_json FROM gold.resource_row ORDER BY resource_id, row_number"
         ):
-            rows.setdefault(item["resource_id"], []).append(json.loads(item["row"]))
-        return GoldData(datasets=datasets, flights=flights, runs=runs, rows_by_resource=rows)
+            rows.setdefault(item["resource_id"], []).append(_json(item["row_json"], {}))
+        return GoldData(
+            datasets=build_datasets(datasets, orgs, resources),
+            flights=_plain(flights),
+            runs=_plain(runs),
+            rows_by_resource=rows,
+        )
 
     def dataset_history(self, dataset_id: str) -> list[Row]:
-        from google.cloud import bigquery
-
-        return self._query(
-            f"""SELECT 'dataset' AS kind, dataset_id AS id, title AS label, valid_from, valid_to, is_current,
-                       TO_JSON_STRING(STRUCT(title, description, license, update_frequency, tags,
-                                             source_modified_at)) AS snapshot
-                FROM {self._ds}.dim_dataset WHERE dataset_id = @id
-                UNION ALL
-                SELECT 'table_structure', s.resource_id, r.name, s.valid_from, s.valid_to, s.is_current,
-                       TO_JSON_STRING(STRUCT(s.columns))
-                FROM {self._ds}.dim_resource_schema s
-                JOIN {self._ds}.dim_resource r ON r.resource_id = s.resource_id AND r.is_current
-                WHERE r.dataset_id = @id
-                ORDER BY valid_from DESC
-                LIMIT 200""",
-            [bigquery.ScalarQueryParameter("id", "STRING", dataset_id)],
+        rows = self._query(
+            """SELECT 'dataset' AS kind, dataset_id AS id, title AS label, valid_from, valid_to, is_current,
+                      (SELECT title, description, license, update_frequency, tags_json, source_modified_at
+                       FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS snapshot
+               FROM gold.dim_dataset WHERE dataset_id = ?
+               UNION ALL
+               SELECT 'table_structure', s.resource_id, r.name, s.valid_from, s.valid_to, s.is_current,
+                      CONCAT('{"columns":', s.columns_json, '}')
+               FROM gold.dim_resource_schema s
+               JOIN gold.dim_resource r ON r.resource_id = s.resource_id AND r.is_current = 1
+               WHERE r.dataset_id = ?
+               ORDER BY valid_from DESC
+               OFFSET 0 ROWS FETCH NEXT 200 ROWS ONLY""",
+            dataset_id,
+            dataset_id,
         )
+        for r in rows:
+            r["is_current"] = bool(r["is_current"])
+        return _plain(rows)  # type: ignore[no-any-return]
 
     def flight_history(self, flight_key: str) -> list[Row]:
-        from google.cloud import bigquery
-
-        return self._query(
-            f"""SELECT status_en, status_he, estimated_at, terminal, checkin_counters, valid_from, valid_to,
-                       is_current
-                FROM {self._ds}.dim_flight WHERE flight_key = @key ORDER BY valid_from DESC LIMIT 100""",
-            [bigquery.ScalarQueryParameter("key", "STRING", flight_key)],
+        rows = self._query(
+            """SELECT TOP 100 status_en, status_he, estimated_at, terminal, checkin_counters, valid_from,
+                      valid_to,
+                      is_current
+               FROM gold.dim_flight WHERE flight_key = ? ORDER BY valid_from DESC""",
+            flight_key,
         )
+        for r in rows:
+            r["is_current"] = bool(r["is_current"])
+        return _plain(rows)  # type: ignore[no-any-return]

@@ -1,12 +1,11 @@
-name: CI/CD
+name: CI
 
-# Test every push and pull request with Playwright.
-# Deploy to GitHub Pages (the gh-pages branch) only from main, or by hand via "Run workflow",
-# and only after the tests pass.
+# Required checks for every pull request into main. deploy.yml also calls this before building a release, so
+# nothing reaches an environment without passing it.
 on:
-  push:
   pull_request:
-  workflow_dispatch:
+    branches: [main]
+  workflow_call:
 
 permissions:
   contents: read
@@ -16,76 +15,163 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Playwright tests
-    runs-on: ubuntu-latest
+  api:
+    name: API (lint, types, tests, audit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: "0.10.12"
+      - run: uv python install 3.12
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest
+      - name: Dependency audit
+        run: uv run pip-audit --skip-editable --strict
+
+  web:
+    name: Website (lint, types, tests, build, audit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22.14.0"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Dependency audit
+        run: npm audit --audit-level=low
+
+  data:
+    name: Data Factory + SQL migrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Validate Data Factory objects
+        run: python adf/validate.py
+      - name: Check migration file names and order
+        run: |
+          set -euo pipefail
+          versions=()
+          for f in sql/migrations/*; do
+            name=$(basename "$f")
+            [[ "$name" =~ ^V[0-9]{3}__[a-z0-9_]+\.sql$ ]] || { echo "bad migration file name: $name"; exit 1; }
+            versions+=("${name:0:4}")
+          done
+          dup=$(printf '%s\n' "${versions[@]}" | sort | uniq -d)
+          [ -z "$dup" ] || { echo "duplicate migration versions: $dup"; exit 1; }
+
+  terraform:
+    name: Terraform (format, validate, lint, security)
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Run Playwright tests
-        run: npx playwright test
-
-      - name: Upload test report
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+          terraform_version: "1.15.5"
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive infra/azure
+      - name: Validate every root
+        run: |
+          set -euo pipefail
+          for root in infra/azure/shared infra/azure/envs/dev infra/azure/envs/stg infra/azure/envs/prod; do
+            terraform -chdir=$root init -backend=false -input=false >/dev/null
+            terraform -chdir=$root validate
+          done
+      - uses: terraform-linters/setup-tflint@90f302c255ef959cbfb4bd10581afecdb7ece3e6 # v4
         with:
-          name: playwright-report
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 14
-          if-no-files-found: ignore
+          tflint_version: "v0.55.1"
+      - name: tflint
+        run: |
+          set -euo pipefail
+          tflint --init
+          tflint --recursive --chdir infra/azure --minimum-failure-severity=warning
+      - name: Checkov (accepted risks are listed, with reasons, in .checkov.yaml)
+        uses: bridgecrewio/checkov-action@3f0caf0c3aa9f56ade6b49f6e60b63aaeafb75a3 # v12
+        with:
+          config_file: .checkov.yaml
 
-  deploy:
-    name: Deploy to GitHub Pages
-    needs: test
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+  plan:
+    name: Terraform plan (${{ matrix.env }})
+    if: github.event_name == 'pull_request'
+    needs: terraform
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # sign in to Azure with OIDC, as the read-only plan identity
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, stg, prod]
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_PLAN_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_sql_admin_object_id: ${{ vars.SQL_ADMIN_OBJECT_ID }}
+      TF_VAR_sql_admin_login: ${{ secrets.SQL_ADMIN_LOGIN }}
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: "1.15.5"
+          terraform_wrapper: false
+      - name: Plan (read-only; the state lock is not taken)
+        working-directory: infra/azure/envs/${{ matrix.env }}
+        run: |
+          set -euo pipefail
+          terraform init -input=false >/dev/null
+          terraform plan -input=false -lock=false -no-color | tee plan.txt
+          {
+            echo "### Terraform plan: ${{ matrix.env }}"
+            echo '```'
+            grep -E '^(Plan:|No changes)|will be (created|destroyed|replaced|updated|imported)|must be replaced' plan.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  security:
+    name: Secret and vulnerability scan
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: write # pushes the gh-pages branch
-    concurrency:
-      group: pages-deploy
-      cancel-in-progress: false
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Assemble the site (no test or tooling files)
-        run: |
-          mkdir _site
-          rsync -a \
-            --exclude='.git' --exclude='.github' --exclude='.gitignore' \
-            --exclude='node_modules' --exclude='tests' --exclude='tools' \
-            --exclude='playwright-report' --exclude='test-results' --exclude='_site' \
-            --exclude='package.json' --exclude='package-lock.json' --exclude='playwright.config.js' \
-            --exclude='README.md' \
-            ./ _site/
-          touch _site/.nojekyll
-          echo "Files in the published site:"
-          find _site -type f | wc -l
-          test -f _site/index.html
-          test -f _site/add-dataset.html
-          test ! -e _site/tests
-
-      - name: Publish to the gh-pages branch
-        uses: peaceiris/actions-gh-pages@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./_site
-          publish_branch: gh-pages
-          force_orphan: true
-          user_name: github-actions[bot]
-          user_email: 41898282+github-actions[bot]@users.noreply.github.com
-          commit_message: "Deploy ${{ github.sha }} (${{ github.ref_name }})"
+          fetch-depth: 0
+      - name: gitleaks (no secrets in the repository or its history)
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Trivy (dependencies and configuration, HIGH and CRITICAL fail the build)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

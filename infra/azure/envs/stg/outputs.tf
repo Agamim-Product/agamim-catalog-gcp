@@ -1,0 +1,9 @@
+output "lake_account" { value = module.env.lake_account }
+output "key_vault_uri" { value = module.env.key_vault_uri }
+output "sql_server_fqdn" { value = module.env.sql_server_fqdn }
+output "sql_database" { value = module.env.sql_database }
+output "data_factory_name" { value = module.env.data_factory_name }
+output "data_factory_principal_id" { value = module.env.data_factory_principal_id }
+output "web_app_name" { value = module.env.web_app_name }
+output "web_app_url" { value = module.env.web_app_url }
+output "web_app_principal_id" { value = module.env.web_app_principal_id }

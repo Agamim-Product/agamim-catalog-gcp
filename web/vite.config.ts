@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 // Local development calls the live dev API through the dev host (same paths as production).
-const API_TARGET = process.env.API_TARGET ?? "https://dev.136-68-142-201.sslip.io";
+const API_TARGET = process.env.API_TARGET ?? "https://app-agamim-catalog-dev-dc3eee23.azurewebsites.net";
 
 export default defineConfig({
   plugins: [react()],

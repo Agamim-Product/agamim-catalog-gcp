@@ -1,8 +1,0 @@
-{
-  "name": "agamim-catalog-dataform",
-  "private": true,
-  "description": "Dataform project: bronze -> silver -> gold. Core is pinned here so runs never download it.",
-  "dependencies": {
-    "@dataform/core": "3.1.5"
-  }
-}
