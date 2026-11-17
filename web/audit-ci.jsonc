@@ -1,0 +1,12 @@
+{
+  // Website dependency audit (npm). Fails on any finding, low and above, except the ones listed here.
+  "low": true,
+  "package-manager": "npm",
+  "allowlist": [
+    // picomatch <= 4.0.7 can be slowed down by a crafted glob pattern (ReDoS). No fixed release exists yet
+    // (4.0.7 is the newest). It is reached only through build and test tooling (vite, vitest, typescript-eslint)
+    // that feeds it patterns from our own config, not through anything the site ships or any user input.
+    // Approved 2026-11-17. Remove this line when picomatch publishes a fix; Dependabot will propose the upgrade.
+    "GHSA-fc5q-39xc-vjpf"
+  ]
+}
