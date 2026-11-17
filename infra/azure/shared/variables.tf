@@ -1,7 +1,7 @@
 variable "github_repository" {
   type        = string
-  default     = "Agamim-Product/agamim-catalog-gcp"
-  description = "owner/repo whose GitHub Actions may sign in."
+  default     = "Agamim-Product@353296930/agamim-catalog-gcp@1460541082"
+  description = "owner@ownerId/repo@repoId as it appears in this repository's GitHub OIDC token subject (GitHub uses immutable IDs here, so renaming the repo does not break sign-in)."
 }
 
 variable "state_account_name" {

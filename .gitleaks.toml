@@ -1,0 +1,11 @@
+# gitleaks: the default rules, plus the resource names that look like keys only because of their field name
+# (for example `key_vault = "kv-agamim-stg-dc3eee23"` is a Key Vault's name, not a credential).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Azure resource names in Terraform"
+regexes = [
+  '''kv-agamim-(dev|stg|prod)-[0-9a-f]{8}''',
+  '''agamim-kv-[0-9a-f]{8}''',
+]

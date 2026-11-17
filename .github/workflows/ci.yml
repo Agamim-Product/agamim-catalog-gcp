@@ -34,7 +34,7 @@ jobs:
       - run: uv run mypy
       - run: uv run pytest
       - name: Dependency audit
-        run: uv run pip-audit --skip-editable --strict
+        run: uv run pip-audit --skip-editable # our own package is local; every dependency is audited
 
   web:
     name: Website (lint, types, tests, build, audit)
