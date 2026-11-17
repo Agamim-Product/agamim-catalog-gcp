@@ -12,6 +12,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-$ROOT/dist/app.zip}"
+# The zip is written from inside a temporary directory, so the output path must be absolute.
+mkdir -p "$(dirname "$OUT")"
+OUT="$(cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
 BUILD="$(mktemp -d)"
 trap 'rm -rf "$BUILD"' EXIT
 
@@ -31,7 +34,6 @@ cp -R "$ROOT/backend/src/catalog" "$BUILD/src/catalog"
 find "$BUILD" -name '__pycache__' -type d -prune -exec rm -rf {} +
 
 echo "--> zip"
-mkdir -p "$(dirname "$OUT")"
 rm -f "$OUT"
 (cd "$BUILD" && zip -qr "$OUT" src vendor site)
 echo "built $OUT ($(du -h "$OUT" | cut -f1))"
