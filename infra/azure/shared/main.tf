@@ -125,6 +125,28 @@ resource "azurerm_role_assignment" "planner_read" {
   principal_type       = "ServicePrincipal"
 }
 
+# Reader cannot read web app settings: Azure files that read under a "list" action. This role adds exactly
+# that one read action, in the three environment groups only (approved 2026-11-17).
+resource "azurerm_role_definition" "planner_reads" {
+  name        = "Agamim catalog Terraform plan reads"
+  scope       = data.azurerm_resource_group.env["prod"].id
+  description = "Read web app settings, which Terraform needs to plan. Nothing else."
+
+  permissions {
+    actions = ["Microsoft.Web/sites/config/list/action"]
+  }
+
+  assignable_scopes = [for rg in data.azurerm_resource_group.env : rg.id]
+}
+
+resource "azurerm_role_assignment" "planner_reads" {
+  for_each           = local.deployers
+  scope              = data.azurerm_resource_group.env[each.key].id
+  role_definition_id = azurerm_role_definition.planner_reads.role_definition_resource_id
+  principal_id       = azurerm_user_assigned_identity.planner.principal_id
+  principal_type     = "ServicePrincipal"
+}
+
 # Plans read state and take a short lock on it.
 resource "azurerm_role_assignment" "planner_state" {
   scope                = azurerm_storage_container.tfstate.id

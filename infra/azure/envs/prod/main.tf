@@ -19,7 +19,7 @@ module "env" {
   sql_entra_admin         = { login = var.sql_admin_login, object_id = var.sql_admin_object_id }
   sql_legacy_admin_login  = "agamimadmin"
   app_sku                 = "B1"
-  lake_shared_key_enabled = true
+  lake_shared_key_enabled = false
   log_daily_quota_gb      = -1
   alerts_enabled          = true
   alert_email             = var.alert_email
