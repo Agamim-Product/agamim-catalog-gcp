@@ -81,8 +81,33 @@ jobs:
           curl -fsSL "https://github.com/microsoft/go-sqlcmd/releases/download/${SQLCMD_VERSION}/sqlcmd-linux-amd64.tar.bz2" | tar -xj -C /usr/local/bin sqlcmd
           sqlcmd --version
 
+      # GitHub runners have changing public addresses and are not always covered by "Allow Azure services",
+      # so this job opens the database firewall for its own address for the migration step only.
+      - name: Allow this runner on the database
+        run: |
+          set -euo pipefail
+          ip=$(curl -fsS https://checkip.amazonaws.com | tr -d '[:space:]')
+          server="${{ steps.tf.outputs.sql }}"; server="${server%%.*}"
+          az sql server firewall-rule create --resource-group "rg-agamim-catalog-${{ inputs.tf_env }}-ilc" \
+            --server "$server" --name "ci-runner-${{ github.run_id }}" --start-ip-address "$ip" --end-ip-address "$ip" --output none
+          echo "opened ${server} for ${ip}"
+
       - name: Database migrations
-        run: python3 release/sql/migrate.py --server "${{ steps.tf.outputs.sql }}"
+        run: |
+          set -uo pipefail
+          for attempt in 1 2 3 4 5 6 7 8; do
+            if python3 release/sql/migrate.py --server "${{ steps.tf.outputs.sql }}"; then exit 0; fi
+            echo "attempt ${attempt} failed; a new firewall rule can take a minute to apply"
+            [ "$attempt" = "8" ] && exit 1
+            sleep 20
+          done
+
+      - name: Close the database firewall for this runner
+        if: always()
+        run: |
+          server="${{ steps.tf.outputs.sql }}"; server="${server%%.*}"
+          az sql server firewall-rule delete --resource-group "rg-agamim-catalog-${{ inputs.tf_env }}-ilc" \
+            --server "$server" --name "ci-runner-${{ github.run_id }}" --output none || true
 
       - name: Data Factory (deploy, then run the pipeline once and wait for it)
         run: |
