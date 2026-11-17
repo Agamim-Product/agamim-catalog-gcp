@@ -94,10 +94,19 @@ jobs:
             --run pl_ingest_flydata \
             ${{ inputs.start_triggers && '--start-triggers' || '' }}
 
+      # The first start of an App Service can fail its warm-up check and succeed on its own retry, so retry.
       - name: Website + API
         run: |
-          az webapp deploy --resource-group "rg-agamim-catalog-${{ inputs.tf_env }}-ilc" \
-            --name "${{ steps.tf.outputs.app }}" --src-path release/app.zip --type zip --clean true --restart true
+          set -uo pipefail
+          for attempt in 1 2 3; do
+            if az webapp deploy --resource-group "rg-agamim-catalog-${{ inputs.tf_env }}-ilc" \
+                 --name "${{ steps.tf.outputs.app }}" --src-path release/app.zip --type zip --clean true --restart true; then
+              exit 0
+            fi
+            echo "deployment attempt ${attempt} did not report success"
+            [ "$attempt" = "3" ] && exit 1
+            sleep 60
+          done
 
       - name: Smoke test
         env:
