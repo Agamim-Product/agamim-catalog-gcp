@@ -387,10 +387,12 @@
               },
               {
                 "source": {
-                  "name": "ingested_at"
+                  "path": "['ingested_at']",
+                  "type": "String"
                 },
                 "sink": {
-                  "name": "ingested_at"
+                  "name": "ingested_at",
+                  "type": "String"
                 }
               }
             ]
