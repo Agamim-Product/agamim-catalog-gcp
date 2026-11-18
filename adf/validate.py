@@ -51,9 +51,12 @@ def check_column_dictionary(errors: list[str]) -> None:
             errors.append(f"column dictionary: {source} is mapped to {column!r} but documented as {documented.get(source)!r}")
     for source in documented.keys() - mapped.keys():
         errors.append(f"column dictionary: {source} is documented as copied but is not in the mapping")
-    props = {u["name"] for u in copy.get("userProperties", [])}
-    if props != {r["source"] for r in legend if r["source"].startswith("CH")}:
-        errors.append("CopyRowsToSilver user properties do not list every source column of the dictionary")
+    # Azure allows at most 5 user properties per activity, so the explanations live in the activity description.
+    missing = [r["source"] for r in legend if r["source"].startswith("CH") and r["source"] not in copy.get("description", "")]
+    if missing:
+        errors.append(f"CopyRowsToSilver description does not explain: {', '.join(missing)}")
+    if len(copy.get("userProperties", [])) > 5:
+        errors.append("CopyRowsToSilver has more than 5 user properties (Azure rejects the run)")
 
 
 def main() -> int:

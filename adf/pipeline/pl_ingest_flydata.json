@@ -239,76 +239,7 @@
           "secureOutput": false,
           "secureInput": false
         },
-        "userProperties": [
-          {
-            "name": "CHOPER",
-            "value": "→ airline_code: Airline code (IATA), e.g. LY"
-          },
-          {
-            "name": "CHFLTN",
-            "value": "→ flight_number: Flight number"
-          },
-          {
-            "name": "CHOPERD",
-            "value": "→ airline_name: Airline name"
-          },
-          {
-            "name": "CHAORD",
-            "value": "→ direction_code: Direction: A = arrival, D = departure (final table: arrival / departure)"
-          },
-          {
-            "name": "CHSTOL",
-            "value": "→ scheduled_at: Scheduled time, Israel time"
-          },
-          {
-            "name": "CHPTOL",
-            "value": "→ estimated_at: Estimated or actual time, Israel time"
-          },
-          {
-            "name": "CHLOC1",
-            "value": "→ airport_code: Airport code of the destination or origin (IATA)"
-          },
-          {
-            "name": "CHLOC1D",
-            "value": "→ airport_name: Airport name of the destination or origin"
-          },
-          {
-            "name": "CHLOC1T",
-            "value": "→ city_en: City of the destination or origin, in English"
-          },
-          {
-            "name": "CHLOCCT",
-            "value": "→ country_en: Country of the destination or origin, in English"
-          },
-          {
-            "name": "CHTERM",
-            "value": "→ terminal: Terminal number"
-          },
-          {
-            "name": "CHCINT",
-            "value": "→ checkin_counters: Check-in counters"
-          },
-          {
-            "name": "CHCKZN",
-            "value": "→ checkin_zone: Check-in zone"
-          },
-          {
-            "name": "CHRMINE",
-            "value": "→ status_en: Flight status, in English (e.g. LANDED, DEPARTED)"
-          },
-          {
-            "name": "CHLOC1TH",
-            "value": "not copied: City in Hebrew. Not copied"
-          },
-          {
-            "name": "CHLOC1CH",
-            "value": "not copied: Country in Hebrew. Not copied"
-          },
-          {
-            "name": "CHRMINH",
-            "value": "not copied: Flight status in Hebrew. Not copied"
-          }
-        ],
+        "userProperties": [],
         "typeProperties": {
           "source": {
             "type": "JsonSource",
@@ -486,7 +417,7 @@
             "type": "DatasetReference"
           }
         ],
-        "description": "ETL in Data Factory: keep only the English columns, rename them, and add the ingest time in Tel Aviv time."
+        "description": "ETL in Data Factory: keep only the English columns, rename them, add the Tel Aviv ingest time. Source column codes:\nCHOPER -> airline_code: Airline code (IATA)\nCHFLTN -> flight_number: Flight number\nCHOPERD -> airline_name: Airline name\nCHAORD -> direction_code: Direction: A = arrival, D = departure\nCHSTOL -> scheduled_at: Scheduled time, Israel time\nCHPTOL -> estimated_at: Estimated or actual time, Israel time\nCHLOC1 -> airport_code: Airport code of the destination or origin (IATA)\nCHLOC1D -> airport_name: Airport name of the destination or origin\nCHLOC1T -> city_en: City of the destination or origin, in English\nCHLOCCT -> country_en: Country of the destination or origin, in English\nCHTERM -> terminal: Terminal number\nCHCINT -> checkin_counters: Check-in counters\nCHCKZN -> checkin_zone: Check-in zone\nCHRMINE -> status_en: Flight status, in English\nCHLOC1TH: City in Hebrew, not copied\nCHLOC1CH: Country in Hebrew, not copied\nCHRMINH: Flight status in Hebrew, not copied"
       },
       {
         "name": "ReadPackage",
