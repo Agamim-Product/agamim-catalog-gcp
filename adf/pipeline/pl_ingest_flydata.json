@@ -239,7 +239,76 @@
           "secureOutput": false,
           "secureInput": false
         },
-        "userProperties": [],
+        "userProperties": [
+          {
+            "name": "CHOPER",
+            "value": "→ airline_code: Airline code (IATA), e.g. LY"
+          },
+          {
+            "name": "CHFLTN",
+            "value": "→ flight_number: Flight number"
+          },
+          {
+            "name": "CHOPERD",
+            "value": "→ airline_name: Airline name"
+          },
+          {
+            "name": "CHAORD",
+            "value": "→ direction_code: Direction: A = arrival, D = departure (final table: arrival / departure)"
+          },
+          {
+            "name": "CHSTOL",
+            "value": "→ scheduled_at: Scheduled time, Israel time"
+          },
+          {
+            "name": "CHPTOL",
+            "value": "→ estimated_at: Estimated or actual time, Israel time"
+          },
+          {
+            "name": "CHLOC1",
+            "value": "→ airport_code: Airport code of the destination or origin (IATA)"
+          },
+          {
+            "name": "CHLOC1D",
+            "value": "→ airport_name: Airport name of the destination or origin"
+          },
+          {
+            "name": "CHLOC1T",
+            "value": "→ city_en: City of the destination or origin, in English"
+          },
+          {
+            "name": "CHLOCCT",
+            "value": "→ country_en: Country of the destination or origin, in English"
+          },
+          {
+            "name": "CHTERM",
+            "value": "→ terminal: Terminal number"
+          },
+          {
+            "name": "CHCINT",
+            "value": "→ checkin_counters: Check-in counters"
+          },
+          {
+            "name": "CHCKZN",
+            "value": "→ checkin_zone: Check-in zone"
+          },
+          {
+            "name": "CHRMINE",
+            "value": "→ status_en: Flight status, in English (e.g. LANDED, DEPARTED)"
+          },
+          {
+            "name": "CHLOC1TH",
+            "value": "not copied: City in Hebrew. Not copied"
+          },
+          {
+            "name": "CHLOC1CH",
+            "value": "not copied: Country in Hebrew. Not copied"
+          },
+          {
+            "name": "CHRMINH",
+            "value": "not copied: Flight status in Hebrew. Not copied"
+          }
+        ],
         "typeProperties": {
           "source": {
             "type": "JsonSource",

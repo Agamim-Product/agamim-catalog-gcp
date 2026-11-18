@@ -1,0 +1,110 @@
+[
+  {
+    "source": "CHOPER",
+    "column": "airline_code",
+    "meaning_he": "קוד חברת התעופה (IATA), למשל LY",
+    "meaning_en": "Airline code (IATA), e.g. LY"
+  },
+  {
+    "source": "CHFLTN",
+    "column": "flight_number",
+    "meaning_he": "מספר הטיסה",
+    "meaning_en": "Flight number"
+  },
+  {
+    "source": "CHOPERD",
+    "column": "airline_name",
+    "meaning_he": "שם חברת התעופה",
+    "meaning_en": "Airline name"
+  },
+  {
+    "source": "CHAORD",
+    "column": "direction_code",
+    "meaning_he": "כיוון: A = נחיתה, D = המראה (בטבלה הסופית: arrival / departure)",
+    "meaning_en": "Direction: A = arrival, D = departure (final table: arrival / departure)"
+  },
+  {
+    "source": "CHSTOL",
+    "column": "scheduled_at",
+    "meaning_he": "מועד מתוכנן, שעון ישראל",
+    "meaning_en": "Scheduled time, Israel time"
+  },
+  {
+    "source": "CHPTOL",
+    "column": "estimated_at",
+    "meaning_he": "מועד משוער או בפועל, שעון ישראל",
+    "meaning_en": "Estimated or actual time, Israel time"
+  },
+  {
+    "source": "CHLOC1",
+    "column": "airport_code",
+    "meaning_he": "קוד שדה התעופה של היעד או המוצא (IATA)",
+    "meaning_en": "Airport code of the destination or origin (IATA)"
+  },
+  {
+    "source": "CHLOC1D",
+    "column": "airport_name",
+    "meaning_he": "שם שדה התעופה של היעד או המוצא",
+    "meaning_en": "Airport name of the destination or origin"
+  },
+  {
+    "source": "CHLOC1T",
+    "column": "city_en",
+    "meaning_he": "עיר היעד או המוצא, באנגלית",
+    "meaning_en": "City of the destination or origin, in English"
+  },
+  {
+    "source": "CHLOCCT",
+    "column": "country_en",
+    "meaning_he": "מדינת היעד או המוצא, באנגלית",
+    "meaning_en": "Country of the destination or origin, in English"
+  },
+  {
+    "source": "CHTERM",
+    "column": "terminal",
+    "meaning_he": "מספר הטרמינל",
+    "meaning_en": "Terminal number"
+  },
+  {
+    "source": "CHCINT",
+    "column": "checkin_counters",
+    "meaning_he": "עמדות צ׳ק-אין",
+    "meaning_en": "Check-in counters"
+  },
+  {
+    "source": "CHCKZN",
+    "column": "checkin_zone",
+    "meaning_he": "אזור צ׳ק-אין",
+    "meaning_en": "Check-in zone"
+  },
+  {
+    "source": "CHRMINE",
+    "column": "status_en",
+    "meaning_he": "סטטוס הטיסה, באנגלית (למשל LANDED, DEPARTED)",
+    "meaning_en": "Flight status, in English (e.g. LANDED, DEPARTED)"
+  },
+  {
+    "source": "CHLOC1TH",
+    "column": null,
+    "meaning_he": "עיר היעד או המוצא, בעברית. לא מועתקת",
+    "meaning_en": "City in Hebrew. Not copied"
+  },
+  {
+    "source": "CHLOC1CH",
+    "column": null,
+    "meaning_he": "מדינת היעד או המוצא, בעברית. לא מועתקת",
+    "meaning_en": "Country in Hebrew. Not copied"
+  },
+  {
+    "source": "CHRMINH",
+    "column": null,
+    "meaning_he": "סטטוס הטיסה, בעברית. לא מועתק",
+    "meaning_en": "Flight status in Hebrew. Not copied"
+  },
+  {
+    "source": "(added by the pipeline)",
+    "column": "ingested_at",
+    "meaning_he": "מועד הטעינה של השורה, שעון תל אביב",
+    "meaning_en": "When the row was loaded, Tel Aviv time"
+  }
+]
