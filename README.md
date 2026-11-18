@@ -10,7 +10,7 @@ Architecture diagram: [`docs/architecture.drawio`](docs/architecture.drawio) (op
 ## How data flows
 
 ```
-data.gov.il API ──Copy──► Data Lake (landing, raw JSON = bronze) ──Copy──► Azure SQL silver
+data.gov.il API ──Copy──► Data Lake (landing, raw JSON = bronze) ──Copy (English columns + ingest time)──► Azure SQL silver
                                                                               │ gold.usp_refresh_catalog
                                                                               ▼ (clean, check, SCD2 merge)
                          website + /api (App Service) ◄── reads ──────── Azure SQL gold
@@ -18,9 +18,11 @@ data.gov.il API ──Copy──► Data Lake (landing, raw JSON = bronze) ─�
 
 - **Bronze:** each API reply is saved unchanged in the lake, under `landing/ckan/<entity>/dt=YYYY-MM-DD/run=<run_id>/`.
 - **Silver:** that run's rows, loaded into `silver.df_records_raw`. The table is emptied before each load.
-- **Gold:** dimension tables with full history (`valid_from`, `valid_to`, `is_current`): `dim_dataset`, `dim_resource`,
-  `dim_resource_schema`, `dim_flight` and the others. Plus the current rows, a snapshot of each table, and the run
-  log `fct_ingestion_run`.
+- **Gold:** dimension tables with full history (`valid_from`, `valid_to`, `is_current`) for the catalog metadata:
+  `dim_dataset`, `dim_resource`, `dim_resource_schema`, `dim_organization`. The flights are a simple table,
+  `gold.flights`: one row per flight, English columns only, times in Tel Aviv time as the source publishes them,
+  and `ingested_at` (Tel Aviv time of the run that loaded it). It is replaced as a whole on every run. Plus the
+  rows and a snapshot of each table, and the run log `fct_ingestion_run`.
 - **Checks:** a run stops before touching gold if:
   - it found no data,
   - flight keys are duplicated, or

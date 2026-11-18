@@ -1,6 +1,7 @@
 {
-  "name": "ds_sql_records_raw",
+  "name": "ds_sql_flights_stage",
   "properties": {
+    "description": "Staging table the Copy step fills: the English flight columns only, plus the Tel Aviv ingest time.",
     "linkedServiceName": {
       "referenceName": "ls_sql_gold",
       "type": "LinkedServiceReference"
@@ -10,7 +11,7 @@
     "schema": [],
     "typeProperties": {
       "schema": "silver",
-      "table": "df_records_raw"
+      "table": "flights_stage"
     }
   }
 }

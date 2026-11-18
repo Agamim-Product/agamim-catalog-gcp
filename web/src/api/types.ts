@@ -117,26 +117,15 @@ export interface Flight {
   estimated_at: string | null;
   airport_code: string | null;
   city_en: string | null;
-  city_he: string | null;
-  country_he: string | null;
+  country_en: string | null;
   terminal: number | null;
   checkin_counters: string | null;
+  checkin_zone: string | null;
   status_en: string | null;
-  status_he: string | null;
-  changed_at: string | null;
+  /** Tel Aviv time, no time zone suffix (like scheduled_at and estimated_at). */
+  ingested_at: string;
 }
 
 export interface FlightsPage extends Paged<Flight> {
   statuses: FacetValue[];
-}
-
-export interface FlightVersion {
-  status_en: string | null;
-  status_he: string | null;
-  estimated_at: string | null;
-  terminal: number | null;
-  checkin_counters: string | null;
-  valid_from: string;
-  valid_to: string | null;
-  is_current: boolean;
 }

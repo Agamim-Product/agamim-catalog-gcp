@@ -39,9 +39,6 @@ class GoldSource(Protocol):
     def dataset_history(self, dataset_id: str) -> list[Row]:
         """The versions of one dataset and of its tables' structure, newest first."""
 
-    def flight_history(self, flight_key: str) -> list[Row]:
-        """The versions of one flight, newest first."""
-
 
 def _plain(value: Any) -> Any:
     """SQL values to JSON-friendly ones: times become ISO strings (stored as UTC)."""
@@ -54,6 +51,11 @@ def _plain(value: Any) -> Any:
     if isinstance(value, list):
         return [_plain(v) for v in value]
     return value
+
+
+def _local(rows: list[Row]) -> list[Row]:
+    """The flights table holds Tel Aviv time, not UTC: write it without a trailing Z so nobody converts it."""
+    return [{k: v.isoformat() if isinstance(v, datetime) else v for k, v in r.items()} for r in rows]
 
 
 def _json(text: str | None, default: Any) -> Any:
@@ -174,10 +176,9 @@ class AzureSqlGold:
         )
         flights = self._query(
             """SELECT flight_key, airline_code, flight_number, airline_name, direction, scheduled_at,
-                      estimated_at,
-                      airport_code, airport_name, city_en, city_he, country_en, country_he, terminal,
-                      checkin_counters, checkin_zone, status_en, status_he, valid_from AS changed_at
-               FROM gold.dim_flight WHERE is_current = 1"""
+                      estimated_at, airport_code, airport_name, city_en, country_en, terminal,
+                      checkin_counters, checkin_zone, status_en, ingested_at
+               FROM gold.flights"""
         )
         runs = self._query("SELECT TOP 20 * FROM gold.fct_ingestion_run ORDER BY run_id DESC")
         rows: dict[str, list[Row]] = {}
@@ -187,7 +188,7 @@ class AzureSqlGold:
             rows.setdefault(item["resource_id"], []).append(_json(item["row_json"], {}))
         return GoldData(
             datasets=build_datasets(datasets, orgs, resources),
-            flights=_plain(flights),
+            flights=_local(flights),
             runs=_plain(runs),
             rows_by_resource=rows,
         )
@@ -208,18 +209,6 @@ class AzureSqlGold:
                OFFSET 0 ROWS FETCH NEXT 200 ROWS ONLY""",
             dataset_id,
             dataset_id,
-        )
-        for r in rows:
-            r["is_current"] = bool(r["is_current"])
-        return _plain(rows)  # type: ignore[no-any-return]
-
-    def flight_history(self, flight_key: str) -> list[Row]:
-        rows = self._query(
-            """SELECT TOP 100 status_en, status_he, estimated_at, terminal, checkin_counters, valid_from,
-                      valid_to,
-                      is_current
-               FROM gold.dim_flight WHERE flight_key = ? ORDER BY valid_from DESC""",
-            flight_key,
         )
         for r in rows:
             r["is_current"] = bool(r["is_current"])

@@ -103,14 +103,18 @@ describe("dataset page", () => {
     });
   });
 
-  it("shows the flights board and a flight's history", async () => {
+  it("shows the flights board in English and Tel Aviv time", async () => {
     const user = userEvent.setup();
     renderAt("/dataset/flydata");
     await user.click(await screen.findByRole("tab", { name: "לוח טיסות" }));
-    const flight = await screen.findByRole("button", { name: "LY 001" });
+    expect(await screen.findByText("LY 001")).toBeInTheDocument();
+    expect(screen.getByText("NEW YORK")).toBeInTheDocument();
+    expect(screen.getByText("10:00")).toBeInTheDocument(); // shown as stored, not shifted by the browser's time zone
+    expect(screen.getByText("17/11/2026 10:12")).toBeInTheDocument(); // ingest time
     await user.selectOptions(screen.getByRole("combobox", { name: "כיוון" }), "arrival");
-    await user.click(flight);
-    expect(await screen.findByRole("list", { name: "היסטוריית טיסה LY001" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(requestedUrls().some((u) => u.includes("direction=arrival"))).toBe(true);
+    });
   });
 
   it("shows the change history", async () => {

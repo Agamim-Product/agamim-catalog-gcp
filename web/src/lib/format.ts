@@ -37,6 +37,25 @@ export function formatDay(iso: string | null | undefined): string {
   return d ? day.format(d) : "—";
 }
 
+const LOCAL = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/;
+const dayUtc = new Intl.DateTimeFormat("he-IL", { timeZone: "UTC", weekday: "short", day: "2-digit", month: "2-digit" });
+
+/** Flight times are already Tel Aviv time, stored without a time zone. They are shown as they are, never converted. */
+export function formatLocalTime(value: string | null | undefined): string {
+  const m = value ? LOCAL.exec(value) : null;
+  return m ? `${m[4] ?? ""}:${m[5] ?? ""}` : "—";
+}
+
+export function formatLocalDay(value: string | null | undefined): string {
+  const m = value ? LOCAL.exec(value) : null;
+  return m ? dayUtc.format(new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))) : "—";
+}
+
+export function formatLocalDateTime(value: string | null | undefined): string {
+  const m = value ? LOCAL.exec(value) : null;
+  return m ? `${m[3] ?? ""}/${m[2] ?? ""}/${m[1] ?? ""} ${m[4] ?? ""}:${m[5] ?? ""}` : "—";
+}
+
 export function formatNumber(n: number | null | undefined): string {
   return n === null || n === undefined ? "—" : integer.format(n);
 }
@@ -105,7 +124,7 @@ export function columnTypeLabel(type: string): string {
 
 export function cellText(value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "string") return value;
+  if (typeof value === "string") return LOCAL.test(value) ? value.replace("T", " ") : value;
   if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return value.toString();
   return JSON.stringify(value);
 }

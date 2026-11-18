@@ -1,7 +1,6 @@
 import type {
   Dataset,
   Facets,
-  FlightVersion,
   FlightsPage,
   HistoryItem,
   Paged,
@@ -68,6 +67,4 @@ export const api = {
     p: { q?: string; direction?: string; status?: string; page?: number; size?: number },
     signal?: AbortSignal,
   ) => getJson<FlightsPage>("/flights", { ...p }, signal),
-  flightHistory: (key: string, signal?: AbortSignal) =>
-    getJson<{ items: FlightVersion[] }>(`/flights/${enc(key)}/history`, {}, signal),
 };

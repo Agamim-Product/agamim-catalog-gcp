@@ -1,7 +1,7 @@
 {
   "name": "pl_ingest_flydata",
   "properties": {
-    "description": "data.gov.il flydata: API -> lake (bronze, unchanged) -> silver -> clean, check, SCD2 merge into gold. Rows are paged 1,000 at a time, up to 50,000 rows (raise RANGE in CopyRowsToLake if the table grows past that).",
+    "description": "data.gov.il flydata: API -> lake (bronze, unchanged) -> silver (English columns only + Tel Aviv ingest time, done by the Copy step) -> SQL step types the times, runs the checks and replaces gold.flights. Rows are paged 1,000 at a time, up to 50,000.",
     "activities": [
       {
         "name": "SetRunId",
@@ -249,11 +249,20 @@
             },
             "formatSettings": {
               "type": "JsonReadSettings"
-            }
+            },
+            "additionalColumns": [
+              {
+                "name": "ingested_at",
+                "value": {
+                  "value": "@formatDateTime(convertTimeZone(utcnow(), 'UTC', 'Israel Standard Time'), 'yyyy-MM-dd HH:mm:ss')",
+                  "type": "Expression"
+                }
+              }
+            ]
           },
           "sink": {
             "type": "AzureSqlSink",
-            "preCopyScript": "TRUNCATE TABLE silver.df_records_raw",
+            "preCopyScript": "TRUNCATE TABLE silver.flights_stage",
             "writeBehavior": "insert",
             "sqlWriterUseTableLock": false,
             "disableMetricsCollection": false
@@ -266,18 +275,10 @@
             "mappings": [
               {
                 "source": {
-                  "path": "['_id']"
-                },
-                "sink": {
-                  "name": "_id"
-                }
-              },
-              {
-                "source": {
                   "path": "['CHOPER']"
                 },
                 "sink": {
-                  "name": "CHOPER"
+                  "name": "airline_code"
                 }
               },
               {
@@ -285,7 +286,7 @@
                   "path": "['CHFLTN']"
                 },
                 "sink": {
-                  "name": "CHFLTN"
+                  "name": "flight_number"
                 }
               },
               {
@@ -293,23 +294,7 @@
                   "path": "['CHOPERD']"
                 },
                 "sink": {
-                  "name": "CHOPERD"
-                }
-              },
-              {
-                "source": {
-                  "path": "['CHSTOL']"
-                },
-                "sink": {
-                  "name": "CHSTOL"
-                }
-              },
-              {
-                "source": {
-                  "path": "['CHPTOL']"
-                },
-                "sink": {
-                  "name": "CHPTOL"
+                  "name": "airline_name"
                 }
               },
               {
@@ -317,7 +302,23 @@
                   "path": "['CHAORD']"
                 },
                 "sink": {
-                  "name": "CHAORD"
+                  "name": "direction_code"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHSTOL']"
+                },
+                "sink": {
+                  "name": "scheduled_at"
+                }
+              },
+              {
+                "source": {
+                  "path": "['CHPTOL']"
+                },
+                "sink": {
+                  "name": "estimated_at"
                 }
               },
               {
@@ -325,7 +326,7 @@
                   "path": "['CHLOC1']"
                 },
                 "sink": {
-                  "name": "CHLOC1"
+                  "name": "airport_code"
                 }
               },
               {
@@ -333,15 +334,7 @@
                   "path": "['CHLOC1D']"
                 },
                 "sink": {
-                  "name": "CHLOC1D"
-                }
-              },
-              {
-                "source": {
-                  "path": "['CHLOC1TH']"
-                },
-                "sink": {
-                  "name": "CHLOC1TH"
+                  "name": "airport_name"
                 }
               },
               {
@@ -349,15 +342,7 @@
                   "path": "['CHLOC1T']"
                 },
                 "sink": {
-                  "name": "CHLOC1T"
-                }
-              },
-              {
-                "source": {
-                  "path": "['CHLOC1CH']"
-                },
-                "sink": {
-                  "name": "CHLOC1CH"
+                  "name": "city_en"
                 }
               },
               {
@@ -365,7 +350,7 @@
                   "path": "['CHLOCCT']"
                 },
                 "sink": {
-                  "name": "CHLOCCT"
+                  "name": "country_en"
                 }
               },
               {
@@ -373,7 +358,7 @@
                   "path": "['CHTERM']"
                 },
                 "sink": {
-                  "name": "CHTERM"
+                  "name": "terminal"
                 }
               },
               {
@@ -381,7 +366,7 @@
                   "path": "['CHCINT']"
                 },
                 "sink": {
-                  "name": "CHCINT"
+                  "name": "checkin_counters"
                 }
               },
               {
@@ -389,7 +374,7 @@
                   "path": "['CHCKZN']"
                 },
                 "sink": {
-                  "name": "CHCKZN"
+                  "name": "checkin_zone"
                 }
               },
               {
@@ -397,15 +382,15 @@
                   "path": "['CHRMINE']"
                 },
                 "sink": {
-                  "name": "CHRMINE"
+                  "name": "status_en"
                 }
               },
               {
                 "source": {
-                  "path": "['CHRMINH']"
+                  "name": "ingested_at"
                 },
                 "sink": {
-                  "name": "CHRMINH"
+                  "name": "ingested_at"
                 }
               }
             ]
@@ -426,10 +411,11 @@
         ],
         "outputs": [
           {
-            "referenceName": "ds_sql_records_raw",
+            "referenceName": "ds_sql_flights_stage",
             "type": "DatasetReference"
           }
-        ]
+        ],
+        "description": "ETL in Data Factory: keep only the English columns, rename them, and add the ingest time in Tel Aviv time."
       },
       {
         "name": "ReadPackage",

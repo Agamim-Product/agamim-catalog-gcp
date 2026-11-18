@@ -61,7 +61,7 @@ RESOURCE = {
     "data_modified_at": T, "columns_json": '[{"name":"CHOPER","type":"text","position":1}]',
     "schema_changed_at": T, "row_count": 2, "has_full_rows": 1, "copied_at": T,
 }  # fmt: skip
-FLIGHT = {"flight_key": "LY-1-arrival-x", "airline_code": "LY", "scheduled_at": T, "changed_at": T}
+FLIGHT = {"flight_key": "LY-1-arrival-x", "airline_code": "LY", "scheduled_at": T, "ingested_at": T}
 
 
 def make(
@@ -104,14 +104,14 @@ def test_load_reads_current_gold_and_closes_connections() -> None:
             ("FROM gold.dim_dataset WHERE is_current", [DATASET]),
             ("FROM gold.dim_organization", [ORG]),
             ("FROM gold.dim_resource r", [RESOURCE]),
-            ("FROM gold.dim_flight WHERE is_current", [FLIGHT]),
+            ("FROM gold.flights", [FLIGHT]),
             ("FROM gold.fct_ingestion_run ORDER BY", [{"run_id": "20261117120000", "status": "succeeded"}]),
             ("FROM gold.resource_row", [{"resource_id": "r1", "row_json": '{"_id": 1, "CHOPER": "LY"}'}]),
         ]
     )
     data = gold.load()
     assert data.datasets[0]["name"] == "flydata"
-    assert data.flights[0]["scheduled_at"] == "2026-11-17T12:00:00Z"
+    assert data.flights[0]["scheduled_at"] == "2026-11-17T12:00:00"  # Tel Aviv time: no Z
     assert data.runs[0]["run_id"] == "20261117120000"
     assert data.rows_by_resource == {"r1": [{"_id": 1, "CHOPER": "LY"}]}
     assert all(c.closed for c in conns)
@@ -125,17 +125,13 @@ def test_marker_is_latest_successful_run() -> None:
     assert empty.marker() is None
 
 
-def test_histories_use_parameters_not_sql_text() -> None:
+def test_dataset_history_uses_parameters_not_sql_text() -> None:
     gold, log, _ = make(
         [
             ("UNION ALL", [{"kind": "dataset", "id": "d1", "label": "x", "valid_from": T, "valid_to": None,
                             "is_current": 1, "snapshot": json.dumps({"title": "x"})}]),
-            ("FROM gold.dim_flight WHERE flight_key = ?", [{"status_en": "LANDED", "valid_from": T, "is_current": 0}]),
         ]
     )  # fmt: skip
     hist = gold.dataset_history("d1'; DROP TABLE x;--")
     assert hist[0]["is_current"] is True
     assert log[0][1] == ("d1'; DROP TABLE x;--", "d1'; DROP TABLE x;--")
-    flights = gold.flight_history("LY-1")
-    assert flights[0]["is_current"] is False
-    assert log[1][1] == ("LY-1",)
