@@ -48,10 +48,10 @@ sign-in identities.
   - **Terraform:** fmt, validate, tflint, Checkov (accepted risks are listed, with reasons, in `.checkov.yaml`), and a read-only plan for each environment
   - **Security:** gitleaks, Trivy, CodeQL
 - **Merge to main:** `deploy.yml` runs CI again and builds the release **once** (`scripts/package_app.sh`). It then
-  deploys that same release:
-  - to dev, automatically,
-  - then to staging, automatically if dev passed,
-  - then to production, after a required reviewer approves.
+  deploys that same release to dev, and to staging if dev passed. It stops there.
+- **Production is manual:** in GitHub, open Actions, then Deploy, then **Run workflow** on `main`. That run builds
+  the release once and promotes it dev, staging, production. The production job also waits for the required
+  reviewer of the `production` environment.
 - **Each deploy** (`_deploy-env.yml`):
   1. terraform apply
   2. SQL migrations (`sql/migrate.py`)

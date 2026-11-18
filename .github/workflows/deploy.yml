@@ -1,7 +1,9 @@
 name: Deploy
 
-# On every merge to main: run the full CI again, build the release once, then promote that same release
-# dev -> staging -> production. Production waits for a required reviewer (GitHub Environment "production").
+# On every merge to main: run the full CI again, build the release once, deploy it to dev, then staging.
+# Production is manual: open Actions -> Deploy -> Run workflow on main. That run builds the release once and
+# promotes the same release dev -> staging -> production. The production job still waits for the required
+# reviewer of the GitHub Environment "production".
 on:
   push:
     branches: [main]
@@ -71,6 +73,7 @@ jobs:
     secrets: inherit
 
   production:
+    if: github.event_name == 'workflow_dispatch' # merges to main stop at staging
     needs: staging
     uses: ./.github/workflows/_deploy-env.yml
     with:
