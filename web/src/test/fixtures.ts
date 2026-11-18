@@ -89,23 +89,22 @@ export const flights: FlightsPage = {
       flight_number: "001",
       airline_name: "EL AL",
       direction: "arrival",
-      scheduled_at: "2026-11-17T08:00:00Z",
-      estimated_at: "2026-11-17T08:10:00Z",
+      scheduled_at: "2026-11-17T10:00:00",
+      estimated_at: "2026-11-17T10:10:00",
       airport_code: "JFK",
       city_en: "NEW YORK",
-      city_he: "ניו יורק",
-      country_he: "ארצות הברית",
+      country_en: "UNITED STATES",
       terminal: 3,
       checkin_counters: null,
+      checkin_zone: null,
       status_en: "LANDED",
-      status_he: "נחתה",
-      changed_at: "2026-11-17T08:12:00Z",
+      ingested_at: "2026-11-17T10:12:00",
     },
   ],
   total: 1,
   page: 1,
   size: 30,
-  statuses: [{ value: "LANDED", label: "נחתה", count: 1 }],
+  statuses: [{ value: "LANDED", label: "LANDED", count: 1 }],
 };
 
 /** A fetch stand-in that answers the app's API calls from the fixtures above. */
@@ -126,9 +125,6 @@ export function fakeApi(overrides: Record<string, unknown> = {}): typeof fetch {
     [/^\/api\/datasets\/flydata/, dataset],
     [/^\/api\/datasets/, { items: [dataset], total: 1, page: 1, size: 12 }],
     [/^\/api\/resources\/r1\/rows/, rows],
-    [/^\/api\/flights\/.+\/history/, { items: [
-      { status_en: "LANDED", status_he: "נחתה", estimated_at: "2026-11-17T08:10:00Z", terminal: 3, checkin_counters: null, valid_from: "2026-11-17T08:12:00Z", valid_to: null, is_current: true },
-    ] }],
     [/^\/api\/flights/, flights],
   ];
   return ((input: RequestInfo | URL) => {

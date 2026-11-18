@@ -148,4 +148,8 @@ jobs:
           jq -e '.last_run.status == "succeeded" and .datasets >= 1 and .flights > 0' <<<"$status" >/dev/null \
             || { echo "unexpected /api/status: $status"; exit 1; }
           curl -fsS "$URL/api/datasets/flydata" | jq -e '.resources | length >= 1' >/dev/null
+          # The flights table: English columns only, no history columns, with the Tel Aviv ingest time.
+          curl -fsS "$URL/api/flights?size=1" | jq -e '.total > 0 and (.items[0] | has("ingested_at")
+            and (keys | map(endswith("_he")) | any | not) and (has("valid_from") | not) and (has("row_hash") | not))' >/dev/null \
+            || { echo "the flights API does not match the clean table"; exit 1; }
           echo "### ${{ inputs.environment }} is live: $URL" >> "$GITHUB_STEP_SUMMARY"

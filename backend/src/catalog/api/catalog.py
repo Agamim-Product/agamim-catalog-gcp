@@ -37,7 +37,7 @@ def _dataset_haystack(d: Row) -> str:
 
 def _flight_haystack(f: Row) -> str:
     keys = ("airline_code", "flight_number", "airline_name", "airport_code", "airport_name", "city_en",
-            "city_he", "country_en", "country_he", "status_en", "status_he")  # fmt: skip
+            "country_en", "status_en")  # fmt: skip
     code = f"{f.get('airline_code') or ''}{f.get('flight_number') or ''}"
     return normalize(" ".join([code, *(str(f.get(k) or "") for k in keys)]))
 
@@ -181,10 +181,8 @@ class Catalog:
         return out
 
     def flight_statuses(self) -> list[dict[str, Any]]:
-        counts = Counter(
-            (f.get("status_en") or "", f.get("status_he") or "") for f in self.snapshot().data.flights
-        )
-        return [{"value": en, "label": he or en, "count": n} for (en, he), n in counts.most_common() if en]
+        counts = Counter(f.get("status_en") or "" for f in self.snapshot().data.flights)
+        return [{"value": en, "label": en, "count": n} for en, n in counts.most_common() if en]
 
     # ---- status ----
     def status(self) -> Row:
@@ -201,6 +199,3 @@ class Catalog:
 
     def dataset_history(self, dataset_id: str) -> list[Row]:
         return self._source.dataset_history(dataset_id)
-
-    def flight_history(self, flight_key: str) -> list[Row]:
-        return self._source.flight_history(flight_key)

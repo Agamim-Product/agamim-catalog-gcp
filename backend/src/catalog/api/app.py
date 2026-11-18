@@ -129,14 +129,6 @@ def create_app(source: GoldSource | None = None, *, check_every_s: float = 60.0)
         result["statuses"] = c.flight_statuses()
         return result
 
-    @app.get("/api/flights/{flight_key}/history")
-    def flight_history(flight_key: str, response: Response) -> dict[str, Any]:
-        response.headers["Cache-Control"] = HISTORY_CACHE
-        items = catalog().flight_history(flight_key)
-        if not items:
-            raise HTTPException(status_code=404, detail="Flight not found")
-        return {"items": items}
-
     # The website, built by Vite. Mounted last, so every /api route above wins. Hash routes (/#/catalog) mean
     # every page is index.html.
     static_dir = os.environ.get("STATIC_DIR")

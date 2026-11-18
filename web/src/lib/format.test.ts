@@ -3,6 +3,9 @@ import {
   columnTypeLabel,
   formatBytes,
   formatDateTime,
+  formatLocalDateTime,
+  formatLocalDay,
+  formatLocalTime,
   formatNumber,
   frequencyLabel,
   minutesSince,
@@ -51,5 +54,15 @@ describe("format helpers", () => {
     expect(cellText(null)).toBe("—");
     expect(cellText("")).toBe("—");
     expect(cellText({ a: 1 })).toBe('{"a":1}');
+  });
+
+  it("shows flight times as stored in Tel Aviv time, without shifting them", () => {
+    expect(formatLocalTime("2026-11-17T22:55:00")).toBe("22:55");
+    expect(formatLocalDateTime("2026-11-17T22:55:00")).toBe("17/11/2026 22:55");
+    expect(formatLocalDay("2026-11-17T22:55:00")).toContain("17");
+    expect(formatLocalTime(null)).toBe("—");
+    expect(formatLocalDay("garbage")).toBe("—");
+    expect(formatLocalDateTime(undefined)).toBe("—");
+    expect(cellText("2026-11-17T22:55:00")).toBe("2026-11-17 22:55:00");
   });
 });

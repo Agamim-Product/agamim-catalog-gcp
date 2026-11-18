@@ -43,11 +43,11 @@ DATASETS = [
 
 FLIGHTS = [
     {"flight_key": "LY-001-departure-x", "airline_code": "LY", "flight_number": "001", "airline_name": "EL AL",
-     "direction": "departure", "city_en": "NEW YORK", "city_he": "ניו יורק", "status_en": "ON TIME",
-     "status_he": "בזמן", "scheduled_at": "2026-11-17T10:00:00"},
+     "direction": "departure", "city_en": "NEW YORK", "status_en": "ON TIME",
+     "scheduled_at": "2026-11-17T10:00:00", "ingested_at": "2026-11-17T12:00:00"},
     {"flight_key": "W6-002-arrival-x", "airline_code": "W6", "flight_number": "002", "airline_name": "WIZZ",
-     "direction": "arrival", "city_en": "ROME", "city_he": "רומא", "status_en": "LANDED", "status_he": "נחתה",
-     "scheduled_at": "2026-11-17T08:00:00"},
+     "direction": "arrival", "city_en": "ROME", "status_en": "LANDED",
+     "scheduled_at": "2026-11-17T08:00:00", "ingested_at": "2026-11-17T12:00:00"},
 ]  # fmt: skip
 
 
@@ -71,9 +71,6 @@ class FakeSource:
 
     def dataset_history(self, dataset_id: str) -> list[dict[str, Any]]:
         return [{"kind": "dataset", "id": dataset_id}]
-
-    def flight_history(self, flight_key: str) -> list[dict[str, Any]]:
-        return [{"status_en": "LANDED"}] if flight_key.startswith("W6") else []
 
 
 @pytest.fixture
@@ -155,10 +152,11 @@ def test_flights_filters_and_history(client: TestClient) -> None:
     assert client.get("/api/flights", params={"direction": "arrival"}).json()["total"] == 1
     assert client.get("/api/flights", params={"status": "landed"}).json()["total"] == 1
     assert client.get("/api/flights", params={"q": "ly001"}).json()["total"] == 1
-    assert client.get("/api/flights", params={"q": "רומא"}).json()["total"] == 1
+    assert client.get("/api/flights", params={"q": "rome"}).json()["total"] == 1
     assert client.get("/api/flights", params={"direction": "sideways"}).status_code == 422
-    assert client.get("/api/flights/W6-002-arrival-x/history").json()["items"][0]["status_en"] == "LANDED"
-    assert client.get("/api/flights/none/history").status_code == 404
+    first = client.get("/api/flights").json()["items"][0]
+    assert not any(k.endswith("_he") for k in first)  # English columns only
+    assert first["ingested_at"] == "2026-11-17T12:00:00"  # Tel Aviv time, no Z
 
 
 def test_status(client: TestClient) -> None:
