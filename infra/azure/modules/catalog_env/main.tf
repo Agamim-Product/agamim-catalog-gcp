@@ -93,7 +93,7 @@ resource "azurerm_mssql_server" "this" {
     login_username              = var.sql_entra_admin.login
     object_id                   = var.sql_entra_admin.object_id
     tenant_id                   = data.azurerm_client_config.current.tenant_id
-    azuread_authentication_only = var.sql_legacy_admin_login == null
+    azuread_authentication_only = true # no SQL password sign-in anywhere; every service and person uses Entra ID
   }
 
   # The legacy SQL login (prod only, used by the old site) keeps the password it already has.
