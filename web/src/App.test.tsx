@@ -96,6 +96,10 @@ describe("dataset page", () => {
     await user.click(await screen.findByRole("tab", { name: "טבלאות ונתונים" }));
     const table = await screen.findByRole("region", { name: "שורות הטבלה" });
     expect(within(table).getByText("W6")).toBeInTheDocument();
+    // the column dictionary explains the source's codes and where they end up
+    expect(screen.getAllByText("CHOPER").length).toBeGreaterThan(0);
+    expect(screen.getByText("CHLOC1TH")).toBeInTheDocument();
+    expect(screen.getAllByText("airline_code").length).toBeGreaterThan(0);
     expect(screen.getByText("מספר")).toBeInTheDocument();
     await user.type(screen.getByLabelText("חיפוש בשורות"), "LY");
     await waitFor(() => {

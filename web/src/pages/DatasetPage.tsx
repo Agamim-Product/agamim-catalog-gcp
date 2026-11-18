@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Dataset, HistoryItem } from "../api/types";
+import { ColumnDictionary } from "../components/ColumnDictionary";
 import { FlightsBoard } from "../components/FlightsBoard";
 import { ErrorBox, Loading } from "../components/States";
 import { TableViewer } from "../components/TableViewer";
@@ -161,6 +162,7 @@ function Tables({ dataset: d }: { dataset: Dataset }) {
   }
   return (
     <div className="stack">
+      {d.name === FLIGHTS_DATASET ? <ColumnDictionary /> : null}
       {tables.map((r) => (
         <TableViewer key={r.resource_id} resource={r} />
       ))}

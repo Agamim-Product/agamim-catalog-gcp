@@ -704,3 +704,7 @@ table.data td {
     flex-direction: column;
   }
 }
+
+.dictionary summary { cursor: pointer; font-weight: 500; color: var(--gov); }
+.dictionary table { margin-top: 8px; }
+.dictionary .mono { white-space: nowrap; }

@@ -35,6 +35,27 @@ def refs(node: Any) -> list[tuple[str, str]]:
     return found
 
 
+LEGEND = ROOT.parent / "web" / "src" / "data" / "flydata-columns.json"
+
+
+def check_column_dictionary(errors: list[str]) -> None:
+    """The Copy step's column mapping and the catalog's column dictionary must describe the same columns."""
+    legend = json.loads(LEGEND.read_text(encoding="utf-8"))
+    pipeline = json.loads((ROOT / "pipeline" / "pl_ingest_flydata.json").read_text(encoding="utf-8"))
+    copy = next(a for a in pipeline["properties"]["activities"] if a["name"] == "CopyRowsToSilver")
+    mapped = {m["source"]["path"].strip("[]'"): m["sink"]["name"] for m in copy["typeProperties"]["translator"]["mappings"]
+              if m["source"].get("path", "").startswith("['CH")}  # source columns; added columns are not in the dictionary's CH list
+    documented = {r["source"]: r["column"] for r in legend if r["column"] and r["source"].startswith("CH")}
+    for source, column in mapped.items():
+        if documented.get(source) != column:
+            errors.append(f"column dictionary: {source} is mapped to {column!r} but documented as {documented.get(source)!r}")
+    for source in documented.keys() - mapped.keys():
+        errors.append(f"column dictionary: {source} is documented as copied but is not in the mapping")
+    props = {u["name"] for u in copy.get("userProperties", [])}
+    if props != {r["source"] for r in legend if r["source"].startswith("CH")}:
+        errors.append("CopyRowsToSilver user properties do not list every source column of the dictionary")
+
+
 def main() -> int:
     errors: list[str] = []
     names: dict[str, set[str]] = {}
@@ -70,6 +91,7 @@ def main() -> int:
                     if isinstance(value, str) and value.startswith("RANGE:") and value.split(":")[2] == "":
                         errors.append(f"{path.name}/{activity['name']}: {key} has no upper bound")
 
+    check_column_dictionary(errors)
     for error in errors:
         print(f"ERROR {error}")
     total = sum(len(v) for v in names.values())
